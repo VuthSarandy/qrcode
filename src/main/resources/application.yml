@@ -1,0 +1,38 @@
+
+
+bakong:
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiNDkzYTU5ZWM3Y2IwNDJjMyJ9LCJpYXQiOjE3MzUyNzU1ODIsImV4cCI6MTc0MzA1MTU4Mn0.lA3_LlWocp0cxLsZ-ecDvzKA9UujFiZKr2DkSSrlEEk
+
+# With Telegram
+bot:
+  name: khotixs_bot
+  token: 8147894586:AAGnQPk-G_-UQOg3a6Z1NAPdkEibSH0yGmQ
+
+
+# src/main/resources/application.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/khqr_payments
+    username: postgres
+    password: Vsarandy
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  thymeleaf:
+    cache: false
+
+#
+#app:
+#  payment:
+#    callback-base-url: https://pay.shinoshike.studio
+app:
+  callback:
+    url: https://pay.shinoshike.studio
