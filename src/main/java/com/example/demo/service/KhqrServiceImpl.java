@@ -17,9 +17,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.ErrorResponseException;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -163,12 +167,43 @@ public class KhqrServiceImpl implements KhqrService {
                             HttpStatus.NOT_FOUND,"Payment not found"
                     ));
 
+            // Check with bakong
+
+            WebClient webClient = WebClient.create();
+
+            String token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiNDkzYTU5ZWM3Y2IwNDJjMyJ9LCJpYXQiOjE3MzUyNzU1ODIsImV4cCI6MTc0MzA1MTU4Mn0.lA3_LlWocp0cxLsZ-ecDvzKA9UujFiZKr2DkSSrlEEk";
+
+            Mono<String> responseMono = webClient.post()
+                    .uri("https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5")
+                    .header("Authorization", "Bearer " + token)
+                    .header("Content-Type", "application/json")
+                    .bodyValue("{\"md5\": \"" + md5Hash + "\"}")
+                    .retrieve()
+                    .bodyToMono(String.class);
+
+            responseMono.subscribe(response -> {
+                // Log or process the response here
+                System.out.println("Payment found: " + response);
+            }, error -> {
+                // Handle any errors
+                System.err.println("Error: " + error.getMessage());
+            });
+
+
+
             if (transaction != null && "COMPLETED".equals(transaction.getStatus())) {
-                return new PaymentStatusResponse(
-                        md5Hash,
-                        true,
-                        "Payment completed"
-                );
+
+                // send telegram
+                log.info("Payment {} has been completed", transaction.getMerchantName());
+
+                // publish message to kafka topic
+
+//                return new PaymentStatusResponse(
+//                        md5Hash,
+//                        true,
+//                        "Payment completed"
+//                );
+                return null;
             }
 
             // Then verify with KHQR
