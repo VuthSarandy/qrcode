@@ -1,6 +1,9 @@
 package com.example.demo.service;
 
+import com.example.demo.controller.dto.CheckPaymentResponse;
 import com.example.demo.model.*;
+import com.example.demo.util.TelegramBotUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
@@ -41,6 +44,7 @@ import java.util.Map;
 public class KhqrServiceImpl implements KhqrService {
 
     private final PaymentRepository paymentRepository;
+    private final TelegramBotUtil telegramBotUtil;
 
     @Value("${app.callback.url}")
     private String callbackBaseUrl;
@@ -159,81 +163,41 @@ public class KhqrServiceImpl implements KhqrService {
     }
 
     @Override
-    public PaymentStatusResponse checkPayment(String md5Hash) {
-        try {
-            // First check local database
-            PaymentTransaction transaction = paymentRepository.findByMd5Hash(md5Hash)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,"Payment not found"
-                    ));
+    public Mono<String> checkPayment(String md5Hash) {
+        log.info("Checking payment {}", md5Hash);
+        WebClient webClient = WebClient.create();
+        String token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiNDkzYTU5ZWM3Y2IwNDJjMyJ9LCJpYXQiOjE3MzUyNzU1ODIsImV4cCI6MTc0MzA1MTU4Mn0.lA3_LlWocp0cxLsZ-ecDvzKA9UujFiZKr2DkSSrlEEk";
 
-            // Check with bakong
+        return webClient.post()
+                .uri("https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5")
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .bodyValue("{\"md5\": \"" + md5Hash + "\"}")
+                .retrieve()
+                .bodyToMono(CheckPaymentResponse.class)
+                .flatMap(response -> {
+                    System.out.println("Payment found: " + response);
+                    boolean isPaid = response.responseCode() == 0;
 
-            WebClient webClient = WebClient.create();
+                    if (isPaid) {
+                        log.info("Payment successful");
+                        log.info(response.data().toString());
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("chat_id", "-1002329993288");
+                        data.put("text", "Payment successful");
+//                        data.put("text", response.data().toString() != null ? response.data().toString() : "No additional data");
 
-            String token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiNDkzYTU5ZWM3Y2IwNDJjMyJ9LCJpYXQiOjE3MzUyNzU1ODIsImV4cCI6MTc0MzA1MTU4Mn0.lA3_LlWocp0cxLsZ-ecDvzKA9UujFiZKr2DkSSrlEEk";
-
-            Mono<String> responseMono = webClient.post()
-                    .uri("https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5")
-                    .header("Authorization", "Bearer " + token)
-                    .header("Content-Type", "application/json")
-                    .bodyValue("{\"md5\": \"" + md5Hash + "\"}")
-                    .retrieve()
-                    .bodyToMono(String.class);
-
-            responseMono.subscribe(response -> {
-                // Log or process the response here
-                System.out.println("Payment found: " + response);
-            }, error -> {
-                // Handle any errors
-                System.err.println("Error: " + error.getMessage());
-            });
-
-
-
-            if (transaction != null && "COMPLETED".equals(transaction.getStatus())) {
-
-                // send telegram
-                log.info("Payment {} has been completed", transaction.getMerchantName());
-
-                // publish message to kafka topic
-
-//                return new PaymentStatusResponse(
-//                        md5Hash,
-//                        true,
-//                        "Payment completed"
-//                );
-                return null;
-            }
-
-            // Then verify with KHQR
-            assert transaction != null;
-//            KHQRResponse<CRCValidation> response = BakongKHQR.verify(transaction.getMd5Hash());
-            KHQRResponse<CRCValidation> response = BakongKHQR.verify(transaction.getMd5Hash());
-            boolean isValid = response.getData().isValid();
-            log.info("Complete KHQR Response: {}", response); // Log complete response
-            log.info("Response Data: {}", response.getData());
-            log.info("Validation Result: {}", response.getData().isValid());
-            log.info("MD5 Hash: {}", md5Hash);
-
-            if (isValid && transaction != null) {
-                transaction.setStatus("COMPLETED");
-                paymentRepository.save(transaction);
-            }
-
-            return new PaymentStatusResponse(
-                    md5Hash,
-                    isValid,
-                    isValid ? "Payment verified" : "Payment not verified"
-            );
-        } catch (Exception e) {
-            log.error("Error checking payment", e);
-            return new PaymentStatusResponse(
-                    md5Hash,
-                    false,
-                    "Error checking payment: " + e.getMessage()
-            );
-        }
+                        telegramBotUtil.sendToTelegram(data);
+                        return Mono.just("Success");
+                    } else {
+                        log.error("Payment check failed with response code: {}", response.responseCode());
+                        return Mono.just("Failed");
+                    }
+                })
+                .onErrorResume(e -> {
+                    log.error("Error checking payment", e);
+                    return Mono.just("Failed");
+                });
     }
 
     @Override

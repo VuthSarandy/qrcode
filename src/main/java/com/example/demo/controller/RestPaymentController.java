@@ -23,9 +23,8 @@ public class RestPaymentController {
     }
 
     @GetMapping("/verify/{md5Hash}")
-    public ResponseEntity<?> verifyPayment(@PathVariable String md5Hash) {
-        PaymentStatusResponse response = khqrService.checkPayment(md5Hash);
-        return ResponseEntity.ok(response);
+    public void verifyPayment(@PathVariable String md5Hash) {
+        khqrService.checkPayment(md5Hash);
     }
 
     @GetMapping("/history/{bankAccount}")

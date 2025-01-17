@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @Controller
 @RequiredArgsConstructor
@@ -29,7 +30,7 @@ public class PaymentController {
 
     @GetMapping("/payment/verify/{md5Hash}")
     @ResponseBody
-    public PaymentStatusResponse verifyPayment(@PathVariable String md5Hash) {
+    public Mono<String> verifyPayment(@PathVariable String md5Hash) {
         return khqrService.checkPayment(md5Hash);
     }
 }

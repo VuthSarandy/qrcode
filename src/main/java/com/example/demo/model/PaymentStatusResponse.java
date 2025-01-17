@@ -9,6 +9,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class PaymentStatusResponse {
     private String md5Hash;
-    private boolean isPaid;
+    private Boolean isPaid;
     private String message;
 }
